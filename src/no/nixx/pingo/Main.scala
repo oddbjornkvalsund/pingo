@@ -42,8 +42,8 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
   var prompt = "> "
   val commandLine = new StringBuilder
 
-  this.addKeyListener(this)
-  this.addFocusListener(this)
+  addKeyListener(this)
+  addFocusListener(this)
 
   def clearContent() = {
     content.clear()
@@ -60,7 +60,6 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
   def addCommandLineToContent() = {
     addLineToContent(prompt + commandLine.toString())
   }
-
 
   def clearCommandLine() = {
     commandLine.clear()
@@ -80,17 +79,17 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
     val allContent = new StringBuilder
 
     content.foreach(line => {
-      allContent += line
+      allContent ++= line
       allContent += '\n'
     })
-    allContent += prompt
-    allContent += commandLine
+    allContent ++= prompt
+    allContent ++= commandLine
 
     setText(allContent.toString())
     setCaretPosition(getDocument.getLength)
   }
 
-  def findAndCallHandlers(s: String) = {
+  def findAndCallCommandHandler(s: String) = {
     // Expand aliases
     // Expand variables
     // Parse into pipeline or
@@ -105,8 +104,7 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
     }
   }
 
-
-  def keyPressed(e: KeyEvent): Unit = {
+  def keyPressed(e: KeyEvent) {
     e.consume()
 
     val keycode = e.getKeyCode
@@ -120,7 +118,7 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
       // TODO
     } else if (keycode == KeyEvent.VK_ENTER) {
       addCommandLineToContent()
-      findAndCallHandlers(commandLine.toString())
+      findAndCallCommandHandler(commandLine.toString())
       clearCommandLine()
     } else if (keycode == KeyEvent.VK_BACK_SPACE) {
       backspace()
@@ -152,27 +150,25 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
       block != Character.UnicodeBlock.SPECIALS
   }
 
-  def keyTyped(e: KeyEvent): Unit = {
+  def keyTyped(e: KeyEvent) {
     e.consume()
   }
 
-  def keyReleased(e: KeyEvent): Unit = {
-    if (e.getKeyCode == KeyEvent.VK_CONTROL) {
-      CTRL_IS_PRESSED = false
-    } else if (e.getKeyCode == KeyEvent.VK_SHIFT) {
-      SHIFT_IS_PRESSED = false
-    } else if (e.getKeyCode == KeyEvent.VK_ALT) {
-      ALT_IS_PRESSED = false
+  def keyReleased(e: KeyEvent) {
+    e.getKeyCode match {
+     case KeyEvent.VK_CONTROL => CTRL_IS_PRESSED = false
+     case KeyEvent.VK_SHIFT => SHIFT_IS_PRESSED = false
+     case KeyEvent.VK_ALT => ALT_IS_PRESSED = false
     }
   }
 
-  def focusGained(e: FocusEvent): Unit = {
+  def focusGained(e: FocusEvent) {
     CTRL_IS_PRESSED = false
     SHIFT_IS_PRESSED = false
     ALT_IS_PRESSED = false
   }
 
-  def focusLost(e: FocusEvent): Unit = {
+  def focusLost(e: FocusEvent) {
     CTRL_IS_PRESSED = false
     SHIFT_IS_PRESSED = false
     ALT_IS_PRESSED = false
@@ -264,4 +260,26 @@ class cdCommandHandler extends CommandHandler {
 
   def getOutput: List[String] = output.toList
 
+}
+
+class TabCompleter(val userInput: String, val completionCandidates: List[String]) {
+
+  val matches = completionCandidates.filter(c => c.startsWith(userInput))
+  var pos = 0
+
+  def hasNext = {
+    matches.nonEmpty
+  }
+
+  def next = {
+    if(matches.isEmpty) {
+      throw new IllegalArgumentException("No matches!")
+    }
+
+    if(pos == matches.size) {
+      pos = 0
+    }
+
+    matches(pos++)
+  }
 }
