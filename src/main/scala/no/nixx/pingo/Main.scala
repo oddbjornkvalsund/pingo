@@ -3,6 +3,7 @@ package no.nixx.pingo
 import javax.swing._
 import java.awt.{Font, Dimension}
 import java.awt.event.{FocusEvent, FocusListener, KeyEvent, KeyListener}
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import java.io.File
 
@@ -11,9 +12,10 @@ import java.io.File
  */
 object Main {
 
+  val PINGO_FONT = new Font(Font.MONOSPACED, Font.PLAIN, 12)
+
   var cwd = new File(".").getAbsoluteFile.getParentFile
   var prompt = "> "
-  val PINGO_FONT = new Font(Font.MONOSPACED, Font.PLAIN, 12)
 
   def main(args: Array[String]) {
     val frame = new JFrame("Pingo")
@@ -41,6 +43,7 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
   val content = ArrayBuffer[String]()
   var prompt = "> "
   val commandLine = new StringBuilder
+  var currentCompleter: TabCompleter = null
 
   addKeyListener(this)
   addFocusListener(this)
@@ -105,17 +108,26 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
   }
 
   def keyPressed(e: KeyEvent) {
+    val keycode = e.getKeyCode
     e.consume()
 
-    val keycode = e.getKeyCode
+    if (keycode == KeyEvent.VK_TAB) {
+      if (currentCompleter == null) {
+        currentCompleter = new TabCompleter(getWordAtCaret, List("cd", "ls", "cls"))
+      }
+      if (currentCompleter.hasNext) {
+        setWordAtCaret(currentCompleter.next)
+      }
+    } else {
+      currentCompleter = null
+    }
+
     if (keycode == KeyEvent.VK_CONTROL) {
       CTRL_IS_PRESSED = true
     } else if (keycode == KeyEvent.VK_SHIFT) {
       SHIFT_IS_PRESSED = true
     } else if (keycode == KeyEvent.VK_ALT) {
       ALT_IS_PRESSED = true
-    } else if (keycode == KeyEvent.VK_TAB) {
-      // TODO
     } else if (keycode == KeyEvent.VK_ENTER) {
       addCommandLineToContent()
       findAndCallCommandHandler(commandLine.toString())
@@ -150,15 +162,52 @@ class PingoConsole extends JTextArea with KeyListener with FocusListener {
       block != Character.UnicodeBlock.SPECIALS
   }
 
+  def getCommandLineCaretPosition = {
+    getCaretPosition - content.length - prompt.length
+  }
+
+  def setCommandLineCaretPosition(pos: Int) = {
+    setCaretPosition(content.length + prompt.length + pos)
+  }
+
+  def getWordAtCaret = {
+    getWordFromEndPos(commandLine.toString(), getCommandLineCaretPosition - 1)
+  }
+
+  def getWordFromEndPos(text: String, pos: Int): String = {
+    if (pos < 0 || text(pos).isWhitespace) {
+      ""
+    } else {
+      getWordFromEndPos(text, pos - 1) + text(pos)
+    }
+  }
+
+  def setWordAtCaret(newWord: String) {
+    val oldWordAtCaret: String = getWordAtCaret
+    val replaceStart: Int = getCommandLineCaretPosition - oldWordAtCaret.length
+    val replaceEnd: Int = getCommandLineCaretPosition
+    val newCommandLine: String = commandLine.substring(0, replaceStart) + newWord + commandLine.substring(replaceEnd)
+
+    setCommandLine(newCommandLine)
+    updateView()
+    setCommandLineCaretPosition(replaceStart + newWord.length)
+  }
+
+  def setCommandLine(newCommandLine: String) {
+    commandLine.clear()
+    commandLine.append(newCommandLine)
+  }
+
   def keyTyped(e: KeyEvent) {
     e.consume()
   }
 
   def keyReleased(e: KeyEvent) {
     e.getKeyCode match {
-     case KeyEvent.VK_CONTROL => CTRL_IS_PRESSED = false
-     case KeyEvent.VK_SHIFT => SHIFT_IS_PRESSED = false
-     case KeyEvent.VK_ALT => ALT_IS_PRESSED = false
+      case KeyEvent.VK_CONTROL => CTRL_IS_PRESSED = false
+      case KeyEvent.VK_SHIFT => SHIFT_IS_PRESSED = false
+      case KeyEvent.VK_ALT => ALT_IS_PRESSED = false
+      case _ =>
     }
   }
 
@@ -252,7 +301,7 @@ class cdCommandHandler extends CommandHandler {
     println("Current working directory is: " + Main.cwd)
   }
 
-  def isParentDir(s: String):Boolean = s.matches("^\\.\\.[\\/]*$")
+  def isParentDir(s: String): Boolean = s.matches("^\\.\\.[\\/]*$")
 
   def isAbsolutePath(s: String): Boolean = s.matches("^\\w:.*")
 
@@ -272,14 +321,15 @@ class TabCompleter(val userInput: String, val completionCandidates: List[String]
   }
 
   def next = {
-    if(matches.isEmpty) {
+    if (matches.isEmpty) {
       throw new IllegalArgumentException("No matches!")
     }
 
-    if(pos == matches.size) {
+    if (pos == matches.size) {
       pos = 0
     }
 
-    matches(pos++)
+    pos += 1
+    matches(pos - 1)
   }
 }

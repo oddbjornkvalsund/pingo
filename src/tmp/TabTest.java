@@ -5,8 +5,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 
-import javax.swing.*;
-import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.Arrays;
